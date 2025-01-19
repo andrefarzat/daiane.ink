@@ -1,6 +1,66 @@
+name: daianeink
 
+networks:
+  daianeink:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  n8n-data:
+    driver: local
+  nocobase-data:
+    driver: local
 
 services:
-  n8n:
   postgres:
+    image: postgres:16.4
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres:/docker-entrypoint-initdb.d
+    env_file:
+      - path: main.env
+        required: true
+      - path: postgres/postgres.env
+        required: true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    networks:
+      - daianeink
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    volumes:
+      - n8n-data:/home/node/.n8n
+    ports:
+      - "5678:5678"
+    networks:
+      - daianeink
+    env_file:
+      - path: main.env
+        required: true
+      - path: n8n/n8n.env
+        required: true
+    depends_on:
+      - postgres
+  
   nocobase:
+    image: nocobase/nocobase:latest
+    networks:
+      - daianeink
+    depends_on:
+      - postgres
+    env_file:
+      - path: main.env
+        required: true
+      - path: nocobase/nocobase.env
+        required: true
+    volumes:
+      - nocobase-data:/app/nocobase/storage
+    ports:
+      - "13000:80"
